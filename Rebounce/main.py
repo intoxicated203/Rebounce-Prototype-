@@ -14,7 +14,7 @@ pygame.font.init()
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 DARK_GRAY = (40, 40, 40)
-HEALTH_GRAY = (64, 64, 64)
+TEXT_GRAY = (64, 64, 64)
 
 # Monitor
 WIDTH = 1200 
@@ -26,7 +26,8 @@ FPS = 120
 
 # Fonts
 FPS_FONT = pygame.font.Font(os.path.join('assets', 'fonts', 'times new roman.ttf'), 40)
-HEALTH_FONT = pygame.font.Font(os.path.join('assets', 'fonts', 'GothamMedium_1.ttf'), 200)
+HEALTH_FONT = pygame.font.Font(os.path.join('assets', 'fonts', 'GothamMedium_1.ttf'), 75)
+SCORE_FONT = pygame.font.Font(os.path.join('assets', 'fonts', 'GothamMedium_1.ttf'), 200)
 
 # USEREVENTS
 SPAWN_BALL = USEREVENT + 0
@@ -150,8 +151,12 @@ def draw_fps(fps_overlay, fps_toggle):
     if fps_toggle and fps_overlay:
         window.blit(fps_overlay, (0, 0))
 
+def draw_score(score_text, score_pos):
+    window.blit(score_text, score_pos)
+
 def draw_health(health_text, health_pos):
     window.blit(health_text, health_pos)
+
 # System~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def switch_screen_mode(fullscreen):
     new_fullscreen = not fullscreen
@@ -164,14 +169,24 @@ def switch_screen_mode(fullscreen):
             pygame.display.set_caption('pongz')
     return new_window, new_fullscreen
 
-def render_health(health):
-    health_text = HEALTH_FONT.render(str(health), True, HEALTH_GRAY)
+def render_score(score):
+    score_text = SCORE_FONT.render(str(score), True, TEXT_GRAY)
 
-    health_width, health_height = HEALTH_FONT.size(str(health))
-    health_pos =    (window.get_width()//2 - health_width//2,
-                    window.get_height()//2 - health_height//2)
+    score_width, score_height = SCORE_FONT.size(str(score))
+    score_x = window.get_width()//2 - score_width//2
+    score_y = window.get_height()//2 - score_height//2
 
-    return health_text, health_pos
+    return score_text, (score_x, score_y, score_width, score_height)
+
+def render_health(health, score_pos):
+    health_text = HEALTH_FONT.render(str(health), True, TEXT_GRAY)
+
+    health_height = HEALTH_FONT.size(str(health))[1]
+    health_x = score_pos[0] + score_pos[2]
+    health_y = score_pos[1] - health_height
+
+    return health_text, (health_x, health_y)
+
 # Logic~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def spawn_ball(balls, delta_time):
     width = window.get_width()
@@ -187,7 +202,7 @@ def spawn_ball(balls, delta_time):
     balls.append(Ball(center_cord=(ballx[0], bally), side=ballx[1],
     x_speed=x_speed * delta_time, y_speed=y_speed * delta_time))
 
-def delete_ball(balls, health):
+def delete_ball(balls, health, score):
     for ball in balls:
         if ((ball.inscreen) and ((ball.rect.x <= -BALL_SIZE * 2) or (ball.rect.y <= -BALL_SIZE * 2) or (
         ball.rect.x >= window.get_width()) or (ball.rect.y >= window.get_width()))):
@@ -195,15 +210,19 @@ def delete_ball(balls, health):
                 health -= 1
             balls.remove(ball)
 
+        if health == 0:
+            balls.clear()
+
         if ball.color[0] < DARK_GRAY[0]:
             balls.remove(ball)
 
         if ball.life == 0:
+            score += 1
             ball.x_speed = 0
             ball.y_speed = 0
             ball.fade_rate = 5
 
-    return health
+    return health, score
 
 def handle_movement(pong, mod, speed, last_pong_pos, dash_timer, direction):
     if direction == 0: 
@@ -239,6 +258,7 @@ def main():
     fps_overlay = None
     fps_toggle = False
     health = PONG_HEALTH
+    score = 0
     last_pong_pos = []
     dash_timers = [0, 0]
 
@@ -338,11 +358,13 @@ def main():
             ball.handle_wall_collision()
         
         # Handle health & delete balls~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        health = delete_ball(balls, health)
-        health_text, health_pos = render_health(health)
+        health, score = delete_ball(balls, health, score)
+        score_text, score_pos = render_score(score)
+        health_text, health_pos = render_health(health, score_pos)
 
         # Display----------------------------------------------------------------------------------
         draw_window()
+        draw_score(score_text, score_pos)
         draw_health(health_text, health_pos)
         draw_pong_fades(last_pong_pos)
         draw_pong(pong)
