@@ -1,0 +1,4 @@
+IMPLMENTING DASH FADE OUT
+- store positions in list when dash
+- take 3 last position and fade it down (decrease alpha value)
+- last 50 frames???
