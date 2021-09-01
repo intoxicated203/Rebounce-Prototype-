@@ -1,13 +1,15 @@
 import pygame
 from pygame.locals import *
 import framework
-import menus
+#import menus
 import os
 import time
 import random
+import sys
 
 pygame.init()
 pygame.font.init()
+pygame.mixer.init(44100, 16, 2, 512)
 
 # VARIABLES----------------------------------------------------------------------------------------
 # RGB & Colors
@@ -28,6 +30,16 @@ FPS = 120
 FPS_FONT = pygame.font.Font(os.path.join('assets', 'fonts', 'times new roman.ttf'), 40)
 HEALTH_FONT = pygame.font.Font(os.path.join('assets', 'fonts', 'GothamMedium_1.ttf'), 75)
 SCORE_FONT = pygame.font.Font(os.path.join('assets', 'fonts', 'GothamMedium_1.ttf'), 200)
+
+# Sfx
+BOUNCE_SOUND = pygame.mixer.Sound(os.path.join('assets', 'sfx', 'bounce.wav'))
+BOUNCE_SOUND.set_volume(0.2)
+DASH_SOUND = pygame.mixer.Sound(os.path.join('assets', 'sfx', 'dash.wav'))
+DASH_SOUND.set_volume(0.2)
+DEAD_SOUND1 = pygame.mixer.Sound(os.path.join('assets', 'sfx', 'dead1.wav'))
+DEAD_SOUND1.set_volume(0.2)
+DEAD_SOUND2 = pygame.mixer.Sound(os.path.join('assets', 'sfx', 'dead2.wav'))
+DEAD_SOUND2.set_volume(1)
 
 # USEREVENTS
 SPAWN_BALL = USEREVENT + 0
@@ -66,6 +78,7 @@ class Ball:
         if direction == 'x':    self.x_speed *= -1
         if direction == 'y':    self.y_speed *= -1
         if life_decrease:       self.life -= 1
+        BOUNCE_SOUND.play()
 
     def move(self, delta_time, pong):
         #self.pos[0] += self.x_speed * delta_time
@@ -192,12 +205,12 @@ def spawn_ball(balls, delta_time):
     width = window.get_width()
     height = window.get_height()
 
-    ballx = random.choice([[-30, 0], [width + 30, 1]])
+    ballx = random.choice([[-30, 0], [width + 35, 1]])
     bally = random.randint(height // 2 - BALLY_OFFSET, height // 2 + BALLY_OFFSET)
     if ballx[1] == 0:
-        x_speed = random.randint(8, 10)
+        x_speed = 12#random.randint(9, 11)
     elif ballx[1] == 1:
-        x_speed = -random.randint(8, 10)
+        x_speed = -12#random.randint(9, 11)
     y_speed = random.choice([-1, 1]) * random.randint(5, 7)
     balls.append(Ball(center_cord=(ballx[0], bally), side=ballx[1],
     x_speed=x_speed * delta_time, y_speed=y_speed * delta_time))
@@ -208,6 +221,7 @@ def delete_ball(balls, health, score):
         ball.rect.x >= window.get_width()) or (ball.rect.y >= window.get_width()))):
             if health >= 1:
                 health -= 1
+            DEAD_SOUND2.play()
             balls.remove(ball)
 
         if health == 0:
@@ -218,22 +232,25 @@ def delete_ball(balls, health, score):
 
         if ball.life == 0:
             score += 1
+            DEAD_SOUND1.play()
             ball.x_speed = 0
             ball.y_speed = 0
             ball.fade_rate = 5
 
     return health, score
 
-def handle_movement(pong, mod, speed, last_pong_pos, dash_timer, direction):
+def handle_movement(pong, keydowns, mod, speed, last_pong_pos, dash_timer, direction):
     if direction == 0: 
         speed *= -1  # Going up
         cond = (direction == 0) and (pong.y + speed * DASH_MULTIPLIER >= 0)
     else:
         cond = (direction == 1) and (pong.y + speed * DASH_MULTIPLIER <= window.get_height())
 
-    if mod & KMOD_LSHIFT and cond and DASH_RESET_TIME <= dash_timer <= MAX_DASH_TIME:
+    if (mod & KMOD_LSHIFT or keydowns[K_SPACE]) and cond and DASH_RESET_TIME <= dash_timer <= MAX_DASH_TIME:
             pong.y += speed * DASH_MULTIPLIER
             dash_timer += 1
+            if dash_timer == 1:
+                DASH_SOUND.play()
             #if dash_timer % 1 == 0:
             last_pong_pos.append([pong.copy(), FIRST_DASH_RGB])
     else:
@@ -287,8 +304,7 @@ def main():
         for event in pygame.event.get():
             if event.type == QUIT:
                 pygame.quit()
-                run = False
-                break
+                sys.exit()
             
             # Keyboard inputs (not hold-able)~~~~~~~~~~~~~~~~~~~~~~~~
             if event.type == KEYDOWN:
@@ -308,19 +324,11 @@ def main():
                         pygame.time.set_timer(FPS_REFRESH, 20, 1)
 
                 if event.key == K_ESCAPE:
-                    #if not menu:
-                    #    for ball in balls:
-                    #        ball.x_speed /= delta_time
-                    #        ball.y_speed /= delta_time
-                    menu, delta_time = menus.menu(window, not menu, screenshot)
-                    #if not menu:
-                    #    for ball in balls:
-                    #        ball.x_speed *= delta_time
-                    #        ball.y_speed *= delta_time
-                    #speed = PONG_SPEED * delta_time
-                    while menu:
-                        pygame.time.wait(1000)
-
+                    run = False
+                    break
+                    #pygame.quit()
+                    #sys.exit()
+                    #menu, delta_time = menus.menu(window, not menu, screenshot) #Inital menu
 
             # USEREVENTS checks~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             if event.type == SPAWN_BALL:
@@ -342,12 +350,12 @@ def main():
         # Logic------------------------------------------------------------------------------------
         # Handle movement~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         if (keydowns[K_w] or keydowns[K_UP]) and (pong.y - speed > 0):
-            pong, dash_timers[0] = handle_movement(pong, mod, speed,last_pong_pos, dash_timers[0], direction=0)
+            pong, dash_timers[0] = handle_movement(pong, keydowns, mod, speed,last_pong_pos, dash_timers[0], direction=0)
         elif not keydowns[K_w] and not keydowns[K_UP]:
             dash_timers[0] = DASH_RESET_TIME
 
         if (keydowns[K_s] or keydowns[K_DOWN]) and (pong.bottomleft[1] + speed < height):
-            pong, dash_timers[1] = handle_movement(pong, mod, speed, last_pong_pos, dash_timers[1], direction=1)
+            pong, dash_timers[1] = handle_movement(pong, keydowns, mod, speed, last_pong_pos, dash_timers[1], direction=1)
         elif not keydowns[K_s] and not keydowns[K_DOWN]:
             dash_timers[1] = DASH_RESET_TIME
 
