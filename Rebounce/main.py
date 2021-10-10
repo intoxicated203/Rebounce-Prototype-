@@ -78,7 +78,8 @@ class Ball:
         if direction == 'x':    self.x_speed *= -1
         if direction == 'y':    self.y_speed *= -1
         if life_decrease:       self.life -= 1
-        BOUNCE_SOUND.play()
+        if self.color == WHITE: # Not dieing
+            BOUNCE_SOUND.play()
 
     def move(self, delta_time, pong):
         #self.pos[0] += self.x_speed * delta_time
@@ -257,7 +258,6 @@ def handle_movement(pong, keydowns, mod, speed, last_pong_pos, dash_timer, direc
         pong.y += speed
     #if dash_timer % 5 == 0:
     #    last_pong_pos.append([pong.copy(), current_frame, FIRST_DASH_RGB])
-
 
     return pong, dash_timer
 
